@@ -23,7 +23,7 @@ let g:scp_sync_config = {
 ```
 
 **g:scp_sync_auto_load_config_by_cwd** - Search project for load by matching cwd and local_project_path on start vim.
-**g:scp_sync_config**:
+**g:scp_sync_config** - Projects configurations
   * **remote_server** - Remote server address (ip, dns)
   * **local_project_path** - Local absolute path to project
   * **remote_project_path** - Remote absolute path to project
