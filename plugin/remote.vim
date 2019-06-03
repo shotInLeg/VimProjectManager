@@ -7,46 +7,6 @@ function! s:CheckLoadedProject()
 endfunc
 
 
-function! s:ShowProgress(prefix, percentage, postfix)
-    execute "normal \<C-l>:\<C-u>"                                                                                  
-    echon a:prefix . ' ' . a:percentage . '% [' . a:postfix . ']'
-endfunc
-
-
-function! s:FilterListFiles(all_files, path_filters)
-    for pattern in a:path_filters
-        call filter(a:all_files, 'match(v:val, "' . pattern . '") == -1')
-    endfor
-    return a:all_files
-endfunc
-
-
-function! s:GetListRemoteFiles(remote_server, remote_path, path_filters, ssh_flags)
-    let list_remote_files_cmd = 'ssh ' . a:ssh_flags . ' ' . a:remote_server . ' find ' . a:remote_path . ' -type f'
-    let all_remote_files = split(system(list_remote_files_cmd), '\n')
-    return s:FilterListFiles(all_remote_files, a:path_filters)
-endfunc
-
-
-function! s:GetListLocalFiles(local_path, path_filters)
-    let list_local_files_cmd = 'find ' . a:local_path . ' -type -f'
-    let all_local_files = split(system(list_local_files_cmd), '\n')
-    return s:FilterListFiles(all_local_files, a:path_filters)
-endfunc
-
-
-function! s:DownloadRemote(remote_server, remote_path, local_path, scp_flags)
-    let download_cmd = 'scp ' . a:scp_flags . ' ' . a:remote_server . ':' . a:remote_path . ' ' . a:local_path
-    call system(download_cmd)
-endfunc
-
-
-function! s:UploadRemote(remote_server, remote_path, local_path, scp_flags)
-    let upload_cmd = 'scp ' . a:scp_flags . ' ' . a:local_path . ' ' . a:remote_server . ':' . a:remote_path
-    call system(upload_cmd)
-endfunc
-
-
 function! s:LoadProject(project_name)
     if !exists('g:vpm#remote#projects')
         echo 'Define g:vpm#remote#projects in your vimrc'
@@ -147,24 +107,32 @@ endfunc
 
 
 function! s:AutoUploadFile()
-    if exists('s:upload_on_save') && s:upload_on_save == 1
+    if exists('s:upload_on_save') && s:upload_on_save
         call s:UploadFile()
     endif
 endfunc
 
 
 function! s:AutoLoadConfigByCwd()
-    if exists('g:vpm#remote#autoload_project') && g:vpm#remote#autoload_project == 1
+    if exists('g:vpm#remote#autoload_project') && g:vpm#remote#autoload_project
         silent! call s:LoadProjectByCwd()
     endif
 endfunc
 
 
-command! -nargs=* VpmRemoteLoad :call s:LoadProjectConfig(<f-args>)
+function! s:AutoEnableProjectManager()
+    if exists('g:vpm#enable_project_manager') && g:vpm#enable_project_manager 
+        autocmd VimEnter * :call s:AutoLoadConfigByCwd()
+        autocmd BufWritePost * :call s:AutoUploadFile()
+        autocmd BufRead scp://* :set bt=acwrite
+    endif
+endfunc
+
+
+command! -nargs=* VpmRemoteLoad :call s:LoadProject(<f-args>)
 command! -nargs=* VpmRemoteLoadByCwd :call s:LoadProjectByCwd()
 command! -nargs=0 VpmRemoteDownloadProject :call s:DownloadProject()
 command! -nargs=0 VpmRemoteUploadFile :call s:UploadFile()
 
-autocmd VimEnter * :call s:AutoLoadConfigByCwd()
-autocmd BufWritePost * :call s:AutoUploadFile()
-" autocmd BufReadPre * :call SftpAutoDownload()
+
+autocmd VimEnter * :call s:AutoEnableProjectManager()
