@@ -1,3 +1,21 @@
+function! vpm#IsProjectLoaded()
+    if !exists('g:vpm#project_name') || !exists('g:vpm#local_path')
+        echo 'Run VmpLoadProject <project_name> befor!!!'
+        return 1
+    endif
+    return 0
+endfunc
+
+
+function! vpm#IsRemoteProjectLoaded()
+    if !vpm#IsProjectLoaded() || !exists('g:vpm#remote_server') || !exists('g:vpm#remote_path')
+        echo 'Run VmpLoadProject <project_name> befor!!!'
+        return 1
+    endif
+    return 0
+endfunc
+
+
 function! vpm#ShowProgress(prefix, percentage, postfix)
     execute "normal \<C-l>:\<C-u>"                                                                                  
     echon a:prefix . ' ' . a:percentage . '% [' . a:postfix . ']'

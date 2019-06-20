@@ -15,7 +15,8 @@ function! s:SearchFinderDialog(name, query, all_files)
 endfunc
 
 
-function! s:OpenFinderDialog(name)
+function! s:OpenLocalFinderDialog(name)
+    vpm#GetListLocalFiles(getcwd(), )
     let find_cmd = 'find ' . getcwd() . ' -type f'
     let all_files = split(system(find_cmd), '\n')
 
@@ -25,4 +26,4 @@ function! s:OpenFinderDialog(name)
 endfunc
 
 
-command! -nargs=? VpmFinderDialog :call s:OpenFinderDialog("ls")
+command! -nargs=? VpmLocalFinderDialog :call s:OpenLocalFinderDialog("ls")
