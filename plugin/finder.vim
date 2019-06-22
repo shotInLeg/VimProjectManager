@@ -26,4 +26,28 @@ function! s:OpenLocalFinderDialog(name)
 endfunc
 
 
-command! -nargs=? VpmLocalFinderDialog :call s:OpenLocalFinderDialog("ls")
+function! s:LoadListRemoteFilepaths()
+    call vpm#LoadListRemoteFiles(g:vpm#project_name, g:vpm#remote_server, g:vpm#remote_path, g:vpm#remote_path_filters)
+endfunc
+
+
+function! s:SearchRemoteFilepath(name, query)
+    silent! execute "botright pedit " . a:name
+    noautocmd wincmd P
+    set buftype=nofile
+
+    if a:query != ''
+        for filepath in vpm#FindLoadedFilename(g:vpm#project_name, a:query)
+            let shorted_filepath = substitute(filepath, g:vpm#remote_path . '/', '', 'g')
+            silent! execute "r! echo " . shorted_filepath
+        endfor
+    endif
+    silent! execute "redraw!"
+
+    let search_query = input('>>> ')
+    call s:SearchRemoteFilepath(a:name, search_query)
+endfunc
+
+
+command! -nargs=? VpmLoadRemoteFilepaths :call s:LoadListRemoteFilepaths()
+command! -nargs=? VpmSearchFilepaths :call s:SearchRemoteFilepath('search', '')

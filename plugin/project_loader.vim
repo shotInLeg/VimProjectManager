@@ -32,9 +32,9 @@ function! s:LoadProject(project_name)
 
     let config = g:vpm#projects[a:project_name]
 
-    if !has_key(config, 'remote_server') && !has_key(config, 'remote_path') && !has_key(config, 'local_path')
+    if has_key(config, 'remote_server') && has_key(config, 'remote_path') && has_key(config, 'local_path')
         call s:LoadRemoteProject(a:project_name, config)
-    elseif !has_key(config, 'local_path')
+    elseif has_key(config, 'local_path')
         call s:LoadLocalProject(a:project_name, config)
     else
         echo 'Define local_path in g:vpm#projects'
@@ -48,7 +48,7 @@ function! s:LoadProject(project_name)
 endfunc
 
 
-function! s:LoadRemoteProject(project_config)
+function! s:LoadRemoteProject(project_name, project_config)
     let g:vpm#remote_server = a:project_config['remote_server']
     let g:vpm#remote_path = a:project_config['remote_path']
     let g:vpm#local_path = a:project_config['local_path']
@@ -70,7 +70,7 @@ function! s:LoadRemoteProject(project_config)
 endfunc
 
 
-function! s:LoadLocalProject(project_config)
+function! s:LoadLocalProject(project_name, project_config)
     let g:vpm#local_path = a:project_config['local_path']
     let g:vpm#remote_path_filters = []
 
@@ -78,3 +78,6 @@ function! s:LoadLocalProject(project_config)
         let g:vpm#local_path_filters = a:project_config['local_path_filters']
     endif
 endfunc
+
+
+command! -nargs=? VpmLoadProject :call s:LoadProject('<args>')
