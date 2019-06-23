@@ -87,11 +87,19 @@ function! CloseSearchDialog()
 endfunc
 
 
+function! s:AutoSetupFinder()
+    if g:vpm#enable_project_manager
+        map <C-p> :call ShowSearchDialog()<cr>
+        map <C-o> :call ShowOpenDialog()<cr>
+        autocmd BufReadPost quickfix map <Enter> :call SelectSearchDialogItem()<cr>
+        autocmd BufReadPost quickfix map t :call SelectSearchDialogItem()<cr>
+        autocmd BufReadPost quickfix map q :call CloseSearchDialog()<cr>
+    endif
+endfunc
+
+
 command! -nargs=? VpmLoadFilepaths :call s:LoadListFilepaths()
 command! -nargs=? VpmSearchFilepaths :call s:ShowSearchDialog()
 
-map <C-p> :call ShowSearchDialog()<cr>
-map <C-o> :call ShowOpenDialog()<cr>
-autocmd BufReadPost quickfix map <Enter> :call SelectSearchDialogItem()<cr>
-autocmd BufReadPost quickfix map t :call SelectSearchDialogItem()<cr>
-autocmd BufReadPost quickfix map q :call CloseSearchDialog()<cr>
+
+autocmd VimEnter * :call s:AutoSetupFinder()

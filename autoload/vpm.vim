@@ -1,18 +1,18 @@
 function! vpm#IsProjectLoaded()
-    if !exists('g:vpm#project_name') || !exists('g:vpm#local_path')
-        echo 'Run VmpLoadProject <project_name> befor!!!'
-        return 1
+    if !exists('g:vpm#project_name')
+        echo 'Run :VmpLoadProject <project_name> befor!!!'
+        return 0
     endif
-    return 0
+    return 1
 endfunc
 
 
 function! vpm#IsRemoteProjectLoaded()
     if !vpm#IsProjectLoaded() || !exists('g:vpm#remote_server') || !exists('g:vpm#remote_path')
         echo 'Run VmpLoadProject <project_name> befor!!!'
-        return 1
+        return 0
     endif
-    return 0
+    return 1
 endfunc
 
 
