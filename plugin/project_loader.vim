@@ -55,6 +55,7 @@ function! s:LoadProject(project_name)
     let g:vpm#project_name = a:project_name
     exec 'cd ' . g:vpm#local_path
 
+    echom 'Loaded project ' . g:vpm#project_name . '(' . g:vpm#project_type . ')'
     return 1
 endfunc
 
@@ -88,6 +89,30 @@ function! s:LoadLocalProject(project_name, project_config)
 endfunc
 
 
+function! GetProjectNames(A, L, P)
+    if !exists('g:vpm#projects')
+        return []
+    endif
+
+    let all_files = []
+    for projec_name in keys(g:vpm#projects)
+        call add(all_files, projec_name)
+    endfor
+
+    let all_files = ['localhost', 'localremot', 'electra', 'arcadia']
+    call filter(all_files, 'match(v:val, "^' . a:A . '") != -1')
+    return all_files
+endfunc
+
+
+function! ShowLoadProjectDialog()
+    let project_name = input('Load project: ', '', 'customlist,GetProjectNames')
+    if project_name != ''
+        call s:LoadProject(project_name)
+    endif
+endfunc
+
+
 function! s:AutoLoadProjectByCwd()
     if exists('g:vpm#autoload_project_by_cwd') && g:vpm#autoload_project_by_cwd
         silent! call s:LoadProjectByCwd() 
@@ -95,7 +120,16 @@ function! s:AutoLoadProjectByCwd()
 endfunc
 
 
+function! s:AutoSetupProjectLoader()
+    if g:vpm#enable_project_manager
+        call s:AutoLoadProjectByCwd()
+        map <C-k> :call ShowLoadProjectDialog()<cr>
+    endif
+endfunc
+
+
 command! -nargs=? VpmLoadProject :call s:LoadProject('<args>')
 command! -nargs=? VpmLoadProjectByCwd :call s:LoadProjectByCwd()
 
-autocmd VimEnter * :call s:AutoLoadProjectByCwd()
+
+autocmd VimEnter * :call s:AutoSetupProjectLoader()

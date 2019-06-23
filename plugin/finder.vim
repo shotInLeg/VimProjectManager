@@ -38,7 +38,7 @@ function! ShowOpenDialog()
         return 0
     endif
 
-    let filepath = input('>>> ')
+    let filepath = input('Open file: ')
     if g:vpm#project_type == 'remote'
         let cmd = 'tabe scp://' . g:vpm#remote_server . '/' . g:vpm#remote_path . '/' . filepath
     elseif g:vpm#project_type == 'local'
@@ -59,7 +59,7 @@ function! ShowSearchDialog()
         let s:init = 1
     endif
 
-    let search_query = input('>>> ')
+    let search_query = input('Search file: ')
     silent! call s:SearchFilepath('search', search_query)
 endfunc
 
