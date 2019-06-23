@@ -1,3 +1,18 @@
+function! s:IsCurrentBufferBusy()
+    if bufname('%') != ''
+        return 1
+    endif
+
+    let buflist = tabpagebuflist(tabpagenr())
+    for bufnr in buflist
+        if getbufvar(bufnr, '&modified')
+            return 1
+        endif
+    endfor
+    return 0
+endfunc
+
+
 function! s:LoadListFilepaths()
     if !vpm#IsProjectLoaded()
         echom "Project not loaded"
@@ -39,10 +54,18 @@ function! ShowOpenDialog()
     endif
 
     let filepath = input('Open file: ')
+
+
+    if s:buffer_busy
+        let cmd = 'tabe'
+    else
+        let cmd = 'e'
+    endif
+
     if g:vpm#project_type == 'remote'
-        let cmd = 'tabe scp://' . g:vpm#remote_server . '/' . g:vpm#remote_path . '/' . filepath
+        let cmd = cmd . ' scp://' . g:vpm#remote_server . '/' . g:vpm#remote_path . '/' . filepath
     elseif g:vpm#project_type == 'local'
-        let cmd = 'tabe ' . g:vpm#local_path . '/' . filepath
+        let cmd = cmd . ' ' . g:vpm#local_path . '/' . filepath
     endif
     silent! exec cmd
 endfunc
@@ -59,6 +82,7 @@ function! ShowSearchDialog()
         let s:init = 1
     endif
 
+    let s:buffer_busy = s:IsCurrentBufferBusy()
     let search_query = input('Search file: ')
     silent! call s:SearchFilepath('search', search_query)
 endfunc
@@ -72,10 +96,17 @@ function! SelectSearchDialogItem()
 
     let selected_line = getline('.')
     let filepath = substitute(selected_line, '|| ', '', 'g')
+
+    if s:buffer_busy
+        let cmd = 'tabe'
+    else
+        let cmd = 'e'
+    endif
+
     if g:vpm#project_type == 'remote'
-        let cmd = 'tabe scp://' . g:vpm#remote_server . '/' . g:vpm#remote_path . '/' . filepath
+        let cmd = cmd . ' scp://' . g:vpm#remote_server . '/' . g:vpm#remote_path . '/' . filepath
     elseif g:vpm#project_type == 'local'
-        let cmd = 'tabe ' . g:vpm#local_path . '/' . filepath
+        let cmd = cmd . ' ' . g:vpm#local_path . '/' . filepath
     endif
     cclose
     silent! exec cmd
