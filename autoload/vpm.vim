@@ -67,7 +67,7 @@ function! vpm#UploadRemote(remote_server, remote_path, local_path, scp_flags)
 endfunc
 
 
-function! vpm#LoadListRemoteFiles(project_name, remote_server, remote_path, path_filters)
+function! vpm#LoadListFiles(project_name, remote_server, remote_path, path_filters)
 py3 << EOF
 import os
 import vim
@@ -87,14 +87,14 @@ def popen_to_list_lines(subproc):
 
 def get_local_dirs(server, path, depth):
     args = ['find', path, '-type', 'd'] + ['-maxdepth', str(depth)] if depth else []
-    nargs = ['ssh', server, ' '.join(args)]
+    nargs = args if server == 'localhost' else ['ssh', server, ' '.join(args)]
     subproc = subprocess.Popen(nargs, stdout=subprocess.PIPE)
     return subproc
 
 
 def get_remote_files(server, path, depth=None):
     args = ['find', path, '-type', 'f'] + (['-maxdepth', str(depth)] if depth else [])
-    nargs = ['ssh', server, ' '.join(args)]
+    nargs = args if server == 'localhost' else ['ssh', server, ' '.join(args)]
     subproc = subprocess.Popen(nargs, stdout=subprocess.PIPE)
     return subproc
 
