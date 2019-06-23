@@ -100,6 +100,7 @@ endfunc
 
 command! -nargs=? VpmLoadFilepaths :call s:LoadListFilepaths()
 command! -nargs=? VpmSearchFilepaths :call s:ShowSearchDialog()
+command! -nargs=? VpmSearch :call s:SearchFilepath('search', '<args>')
 
 
 autocmd VimEnter * :call s:AutoSetupFinder()

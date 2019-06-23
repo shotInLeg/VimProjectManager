@@ -73,6 +73,7 @@ import os
 import vim
 import time
 import subprocess
+import multiprocessing
 
 
 project_name = vim.eval('a:project_name')
@@ -81,18 +82,24 @@ remote_path = vim.eval('a:remote_path')
 path_filters = vim.eval('a:path_filters')
 
 
+def strip(path):
+    return path.strip().rstrip('/').rstrip('\\')
+
+
 def popen_to_list_lines(subproc):
     return str(subproc.communicate()[0], 'utf-8').split('\n')
 
 
-def get_local_dirs(server, path, depth):
+def get_dirs(server, path, depth):
+    path = strip(path)
     args = ['find', path, '-type', 'd'] + ['-maxdepth', str(depth)] if depth else []
     nargs = args if server == 'localhost' else ['ssh', server, ' '.join(args)]
     subproc = subprocess.Popen(nargs, stdout=subprocess.PIPE)
     return subproc
 
 
-def get_remote_files(server, path, depth=None):
+def get_files(server, path, depth=None):
+    path = strip(path)
     args = ['find', path, '-type', 'f'] + (['-maxdepth', str(depth)] if depth else [])
     nargs = args if server == 'localhost' else ['ssh', server, ' '.join(args)]
     subproc = subprocess.Popen(nargs, stdout=subprocess.PIPE)
@@ -103,39 +110,51 @@ def get_cache_file(project, chunk):
     return os.path.join(os.path.expanduser('~'), '.vim/.vpm.{}.cache.{}'.format(project, chunk))
 
 
-def get_subprocess_pool(server, path):
-    processes = {}
-    top_level_dirs = popen_to_list_lines(get_local_dirs(server, path, depth=1))
-    for dirpath in top_level_dirs:
-        if not dirpath.strip() or dirpath.strip() == '.':
-            continue
-        processes[dirpath] = get_remote_files(server, dirpath)
-    processes[path] = get_remote_files(server, path, depth=1)
-    return processes
+def get_top_level_dirs_pool(server, path, top_level_dirs_count=0):
+    path = strip(path)
+
+    top_level_dirs = [(path, 1)]
+    dirpaths = popen_to_list_lines(get_dirs(server, path, depth=1))
+
+    dirs_count = len(dirpaths) + top_level_dirs_count
+    if dirs_count < 4:
+        top_level_dirs += [(x, 1) for x in dirpaths if x.strip() and strip(x) != path]
+
+        for dirpath in dirpaths:
+            top_level_dirs += get_top_level_dirs_pool(server, dirpath, dirs_count)
+            dirs_count += len(dirpaths)
+    else:
+        top_level_dirs += [(x, None) for x in dirpaths if x.strip() and strip(x) != path]
+
+    return top_level_dirs
 
 
-def load_list_remote_files(project, server, path, filteres):
-    subprocess_pool = get_subprocess_pool(server, path)
+def recurce_get_files(args_obj):
+    project, server, path, cpu_count, args = args_obj
+    idx, (dirpath, depth) = args
+    chunk_num = idx % cpu_count
 
-    chunk_num = 0
     count_files = 0
-    wfile = open(get_cache_file(project, chunk_num), 'w')
-    for dirpath, subproc in subprocess_pool.items():
+    subproc = get_files(server, dirpath, depth)
+    with open(get_cache_file(project, chunk_num), 'w' if idx < cpu_count else 'a') as wfile:
         for filepath in popen_to_list_lines(subproc):
             filepath = filepath.strip().replace(path, '')
             if not filepath:
                 continue
             wfile.write('{}\n'.format(filepath))
             count_files += 1
-            
-            new_chunk = count_files // 500000
-            if chunk_num != new_chunk:
-                wfile.close()
-                chunk_num = new_chunk
-                wfile = open(get_cache_file(project, chunk_num), 'w')
-    wfile.close()
+    return count_files
 
-    return chunk_num, count_files
+
+def load_list_remote_files(project, server, path, filteres):
+    cpu_count = multiprocessing.cpu_count()
+    top_level_dirs = get_top_level_dirs_pool(server, path)
+
+    pool = multiprocessing.Pool(cpu_count)
+    counts_files = pool.map(recurce_get_files, [(project, server, path, cpu_count, x) for x in enumerate(top_level_dirs)])
+    count_files = sum(counts_files)
+
+    return cpu_count, count_files
 
 
 start = time.time()
@@ -183,7 +202,7 @@ def search_by_chunk(args):
 
 def search_filepaths(project, chunks_count, query):
     pool = multiprocessing.Pool(multiprocessing.cpu_count())
-    search_result = pool.map(search_by_chunk, [(project, x, query) for x in range(chunks_count + 1)])
+    search_result = pool.map(search_by_chunk, [(project, x, query) for x in range(chunks_count)])
     search_result = sum(search_result, [])
 
     return search_result
