@@ -1,28 +1,14 @@
-function! s:IsCurrentBufferBusy()
-    if bufname('%') != ''
-        return 1
-    endif
-
-    let buflist = tabpagebuflist(tabpagenr())
-    for bufnr in buflist
-        if getbufvar(bufnr, '&modified')
-            return 1
-        endif
-    endfor
-    return 0
-endfunc
-
-
-function! s:LoadListFilepaths()
+function! s:LoadProjectFilepathsData()
     if !vpm#IsProjectLoaded()
-        echom "Project not loaded"
+        call vpm#Echo('Project not loaded')
         return 0
     endif
 
     if g:vpm#project_type == 'remote'
         call vpm#LoadListFiles(g:vpm#project_name, g:vpm#remote_server, g:vpm#remote_path, g:vpm#remote_path_filters)
+        call vpm#LoadFilepathsTree(g:vpm#project_name)
         return 1
-    elseif g:vpm#project_type == 'local'
+    elseif g:vpm#project_type == 'local' || g:vpm#project_type == 'sync'
         call vpm#LoadListFiles(g:vpm#project_name, 'localhost', g:vpm#local_path, g:vpm#local_path_filters)
         return 1
     endif
@@ -31,107 +17,116 @@ function! s:LoadListFilepaths()
 endfunc
 
 
-function! s:SearchFilepath(name, query)
-    echom "Searching filepaths: " . a:query
-    let matched_filepargs = vpm#FindLoadedFilename(g:vpm#project_name, a:query)
-    cgetexpr matched_filepargs
-    exe 'copen 10'
 
-    let b:csearch_args = a:query
-    setlocal statusline=%{b:csearch_args}
-
-    if len(getqflist()) < 1
-        cclose
-        echohl ErrorMsg | echo "Couldn't find code matching '" . a:args . "'" | echohl None
+function! s:LoadProjectFilepathsDataIfNeeded()
+    if !exists('s:project_filepaths_data_loaded') || !s:project_filepaths_data_loaded
+        call s:LoadProjectFilepathsData()
+        let s:project_filepaths_data_loaded = 1
     endif
 endfunc
 
 
-function! ShowOpenDialog()
-    if !vpm#IsProjectLoaded()
-        echom "Project not loaded"
-        return 0
+function! s:OpenFilepath(filepath, buffer_busy)
+    if a:buffer_busy == 'NONE'
+        let buffer_busy = vpm#IsCurrentBufferBusy()
     endif
 
-    let filepath = input('Open file: ')
-
-
-    if s:buffer_busy
-        let cmd = 'tabe'
-    else
-        let cmd = 'e'
-    endif
-
-    if g:vpm#project_type == 'remote'
-        let cmd = cmd . ' scp://' . g:vpm#remote_server . '/' . g:vpm#remote_path . '/' . filepath
-    elseif g:vpm#project_type == 'local'
-        let cmd = cmd . ' ' . g:vpm#local_path . '/' . filepath
-    endif
+    let cmd = vpm#GetOpenFilepathCommand(a:filepath, a:buffer_busy)
     silent! exec cmd
 endfunc
 
 
-function! ShowSearchDialog()
+function! s:SearchFilepath(search_query)
     if !vpm#IsProjectLoaded()
-        echom "Project not loaded"
+        call vpm#Echo('Project not loaded')
         return 0
     endif
 
-    if !exists('s:init')
-        call s:LoadListFilepaths()
-        let s:init = 1
-    endif
+    call s:LoadProjectFilepathsDataIfNeeded()
 
-    let s:buffer_busy = s:IsCurrentBufferBusy()
-    let search_query = input('Search file: ')
-    silent! call s:SearchFilepath('search', search_query)
+    call vpm#Echo('Searching filepaths: ' . a:search_query)
+    redraw
+
+    let matched_filepargs = vpm#FindLoadedFilename(g:vpm#project_name, a:search_query)
+    cgetexpr matched_filepargs
+    exe 'copen 10'
+
+    let b:statusline = 'Search file: ' . a:search_query
+    setlocal statusline=%{b:statusline}
+
+    if len(getqflist()) < 1
+        cclose
+        call vpm#Echo('Couldnt not find filepaths matching ' . a:search_query)
+    endif
 endfunc
 
 
-function! SelectSearchDialogItem()
+function! s:SearchFilepathDialog()
     if !vpm#IsProjectLoaded()
-        echom "Project not loaded"
+        call vpm#Echo('Project not loaded')
+        return 0
+    endif
+
+    call s:LoadProjectFilepathsDataIfNeeded()
+
+    let s:buffer_busy = vpm#IsCurrentBufferBusy()
+    let completer = vpm#GetFilepathCompleter()
+
+    let search_query = input('Search file: ', '', completer)
+
+    silent! call s:SearchFilepath(search_query)
+endfunc
+
+
+function! SelectSearchFilepathDialogItem()
+    if !vpm#IsProjectLoaded()
+        call vpm#Echo('Project not loaded')
         return 0
     endif
 
     let selected_line = getline('.')
     let filepath = substitute(selected_line, '|| ', '', 'g')
 
-    if s:buffer_busy
-        let cmd = 'tabe'
-    else
-        let cmd = 'e'
-    endif
-
-    if g:vpm#project_type == 'remote'
-        let cmd = cmd . ' scp://' . g:vpm#remote_server . '/' . g:vpm#remote_path . '/' . filepath
-    elseif g:vpm#project_type == 'local'
-        let cmd = cmd . ' ' . g:vpm#local_path . '/' . filepath
-    endif
-    cclose
-    silent! exec cmd
+    call CloseSearchFilepathDialog()
+    call s:OpenFilepath(filepath, s:buffer_busy)
 endfunc
 
 
-function! CloseSearchDialog()
+function! CloseSearchFilepathDialog()
     cclose
+endfunc
+
+
+function! s:OpenFilepathDialog()
+    if !vpm#IsProjectLoaded()
+        call vpm#Echo('Project not loaded')
+        return 0
+    endif
+
+    let completer = vpm#GetFilepathCompleter()
+
+    let filepath = input('Open file: ', '', completer)
+
+    call s:OpenFilepath(filepath, 'NONE')
 endfunc
 
 
 function! s:AutoSetupFinder()
     if g:vpm#enable_project_manager
-        map <C-p> :call ShowSearchDialog()<cr>
-        map <C-o> :call ShowOpenDialog()<cr>
-        autocmd BufReadPost quickfix map <Enter> :call SelectSearchDialogItem()<cr>
-        autocmd BufReadPost quickfix map t :call SelectSearchDialogItem()<cr>
-        autocmd BufReadPost quickfix map q :call CloseSearchDialog()<cr>
+        map <silent> <C-p> :VpmSearchFilepathDialog<cr>
+        map <silent> <C-o> :echo "AHAHAH"<cr>:VpmOpenFilepathDialog<cr>
+        autocmd BufReadPost quickfix map <silent> <Enter> :call SelectSearchFilepathDialogItem()<cr>
+        autocmd BufReadPost quickfix map <silent> t :call SelectSearchFilepathDialogItem()<cr>
+        autocmd BufReadPost quickfix map <silent> q :call CloseSearchFilepathDialog()<cr>
     endif
 endfunc
 
 
-command! -nargs=? VpmLoadFilepaths :call s:LoadListFilepaths()
-command! -nargs=? VpmSearchFilepaths :call s:ShowSearchDialog()
-command! -nargs=? VpmSearch :call s:SearchFilepath('search', '<args>')
+command! -nargs=? VpmLoadProjectFilepathsData :call s:LoadProjectFilepathsData()
+command! -nargs=? VpmSearchFilepathDialog :call s:SearchFilepathDialog()
+command! -nargs=? VpmOpenFilepathDialog :call s:OpenFilepathDialog()
+command! -nargs=? VpmSearchFilepath :call s:SearchFilepath('<args>')
+command! -nargs=? VpmOpenFilepath :call s:OpenFilepath('<args>')
 
 
 autocmd VimEnter * :call s:AutoSetupFinder()

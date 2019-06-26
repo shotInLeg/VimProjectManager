@@ -26,7 +26,12 @@ endfunc
 
 function! s:LoadProject(project_name)
     if !exists('g:vpm#projects')
-        echo 'Define g:vpm#projects in your vimrc'
+        call vpm#Echo('Define g:vpm#projects in your vimrc')
+        return 0
+    endif
+
+    if !has_key(g:vpm#projects, a:project_name)
+        call vpm#Echo('Project ' . a:project_name . ' not found in g:vpm#projects')
         return 0
     endif
 
@@ -41,21 +46,21 @@ function! s:LoadProject(project_name)
     let g:vpm#local_path_filters = []
     let g:vpm#upload_on_save = 0
 
-    if has_key(config, 'remote_server') && has_key(config, 'remote_path') && has_key(config, 'local_path')
+    if has_key(config, 'remote_server') && has_key(config, 'remote_path')
         call s:LoadRemoteProject(a:project_name, config)
         let g:vpm#project_type = 'remote'
     elseif has_key(config, 'local_path')
         call s:LoadLocalProject(a:project_name, config)
         let g:vpm#project_type = 'local'
     else
-        echo 'Define local_path in g:vpm#projects'
+        call vpm#Echo('Define local_path in g:vpm#projects')
         return 0
     endif
 
     let g:vpm#project_name = a:project_name
     exec 'cd ' . g:vpm#local_path
 
-    echom 'Loaded project ' . g:vpm#project_name . '(' . g:vpm#project_type . ')'
+    call vpm#Echo('Loaded project ' . g:vpm#project_name . '(' . g:vpm#project_type . ')')
     return 1
 endfunc
 
@@ -63,7 +68,10 @@ endfunc
 function! s:LoadRemoteProject(project_name, project_config)
     let g:vpm#remote_server = a:project_config['remote_server']
     let g:vpm#remote_path = a:project_config['remote_path']
-    let g:vpm#local_path = a:project_config['local_path']
+
+    if has_key(a:project_config, 'local_path')
+        let g:vpm#local_path = a:project_config['local_path']
+    endif
 
     if has_key(a:project_config, 'remote_path_filters')
         let g:vpm#remote_path_filters = a:project_config['remote_path_filters']
@@ -89,24 +97,8 @@ function! s:LoadLocalProject(project_name, project_config)
 endfunc
 
 
-function! GetProjectNames(A, L, P)
-    if !exists('g:vpm#projects')
-        return []
-    endif
-
-    let all_files = []
-    for projec_name in keys(g:vpm#projects)
-        call add(all_files, projec_name)
-    endfor
-
-    let all_files = ['localhost', 'localremot', 'electra', 'arcadia']
-    call filter(all_files, 'match(v:val, "^' . a:A . '") != -1')
-    return all_files
-endfunc
-
-
-function! ShowLoadProjectDialog()
-    let project_name = input('Load project: ', '', 'customlist,GetProjectNames')
+function! s:LoadProjectDialog()
+    let project_name = input('Load project: ', '', 'customlist,vpm#ProjectNamesCompleter')
     if project_name != ''
         call s:LoadProject(project_name)
     endif
@@ -123,13 +115,14 @@ endfunc
 function! s:AutoSetupProjectLoader()
     if g:vpm#enable_project_manager
         call s:AutoLoadProjectByCwd()
-        map <C-k> :call ShowLoadProjectDialog()<cr>
+        map <silent> <C-n> :VpmLoadProjectDialog<cr>
     endif
 endfunc
 
 
 command! -nargs=? VpmLoadProject :call s:LoadProject('<args>')
 command! -nargs=? VpmLoadProjectByCwd :call s:LoadProjectByCwd()
+command! -nargs=? VpmLoadProjectDialog :call s:LoadProjectDialog()
 
 
 autocmd VimEnter * :call s:AutoSetupProjectLoader()
