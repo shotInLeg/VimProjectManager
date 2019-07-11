@@ -1,3 +1,6 @@
+call pyvpm#Init()
+
+
 function! s:LoadProjectByCwd()
     if !exists('g:vpm#projects')
         return 0
@@ -57,10 +60,16 @@ function! s:LoadProject(project_name)
         return 0
     endif
 
+    if has_key(config, 'ya_path')
+        let g:vpm#ya_path = config['ya_path']
+    endif
+
     let g:vpm#project_name = a:project_name
     exec 'cd ' . g:vpm#local_path
 
-    call vpm#Echo('Loaded project ' . g:vpm#project_name . '(' . g:vpm#project_type . ')')
+    call pyvpm#MakeProjectData()
+
+    call vpm#Echo('Loaded project ' . g:vpm#project_name . ' (' . g:vpm#project_type . ')')
     return 1
 endfunc
 

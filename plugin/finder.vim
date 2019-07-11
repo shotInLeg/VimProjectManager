@@ -1,15 +1,14 @@
-function! s:LoadProjectFilepathsData()
+function! s:LoadProjectFilepathsData(lazy)
     if !vpm#IsProjectLoaded()
         call vpm#Echo('Project not loaded')
         return 0
     endif
 
     if g:vpm#project_type == 'remote'
-        call vpm#LoadListFiles(g:vpm#project_name, g:vpm#remote_server, g:vpm#remote_path, g:vpm#remote_path_filters)
-        call vpm#LoadFilepathsTree(g:vpm#project_name)
+        call pyvpm#LoadProjectFiles(a:lazy)
         return 1
     elseif g:vpm#project_type == 'local' || g:vpm#project_type == 'sync'
-        call vpm#LoadListFiles(g:vpm#project_name, 'localhost', g:vpm#local_path, g:vpm#local_path_filters)
+        call pyvpm#LoadProjectFiles(a:lazy)
         return 1
     endif
 
@@ -17,10 +16,9 @@ function! s:LoadProjectFilepathsData()
 endfunc
 
 
-
 function! s:LoadProjectFilepathsDataIfNeeded()
     if !exists('s:project_filepaths_data_loaded') || !s:project_filepaths_data_loaded
-        call s:LoadProjectFilepathsData()
+        call s:LoadProjectFilepathsData(1)
         let s:project_filepaths_data_loaded = 1
     endif
 endfunc
@@ -45,11 +43,11 @@ function! s:SearchFilepath(search_query)
     call s:LoadProjectFilepathsDataIfNeeded()
 
     call vpm#Echo('Searching filepaths: ' . a:search_query)
-    redraw
 
-    let matched_filepargs = vpm#FindLoadedFilename(g:vpm#project_name, a:search_query)
+    let matched_filepargs = pyvpm#SearchFilepath(a:search_query)
     cgetexpr matched_filepargs
     exe 'copen 10'
+    let w:quickfix_title = 'vpm#searchfile'
 
     let b:statusline = 'Search file: ' . a:search_query
     setlocal statusline=%{b:statusline}
@@ -61,7 +59,7 @@ function! s:SearchFilepath(search_query)
 endfunc
 
 
-function! s:SearchFilepathDialog()
+function! g:SearchFilepathDialog()
     if !vpm#IsProjectLoaded()
         call vpm#Echo('Project not loaded')
         return 0
@@ -70,7 +68,7 @@ function! s:SearchFilepathDialog()
     call s:LoadProjectFilepathsDataIfNeeded()
 
     let s:buffer_busy = vpm#IsCurrentBufferBusy()
-    let completer = vpm#GetFilepathCompleter()
+    let completer = vpm#GetFilepathNodeCompleter()
 
     let search_query = input('Search file: ', '', completer)
 
@@ -78,7 +76,7 @@ function! s:SearchFilepathDialog()
 endfunc
 
 
-function! SelectSearchFilepathDialogItem()
+function! g:SelectSearchFilepathDialogItem()
     if !vpm#IsProjectLoaded()
         call vpm#Echo('Project not loaded')
         return 0
@@ -87,17 +85,20 @@ function! SelectSearchFilepathDialogItem()
     let selected_line = getline('.')
     let filepath = substitute(selected_line, '|| ', '', 'g')
 
-    call CloseSearchFilepathDialog()
+    call g:CloseSearchFilepathDialog()
     call s:OpenFilepath(filepath, s:buffer_busy)
+
+    return 1
 endfunc
 
 
-function! CloseSearchFilepathDialog()
+function! g:CloseSearchFilepathDialog()
     cclose
+    return 1
 endfunc
 
 
-function! s:OpenFilepathDialog()
+function! g:OpenFilepathDialog()
     if !vpm#IsProjectLoaded()
         call vpm#Echo('Project not loaded')
         return 0
@@ -113,18 +114,14 @@ endfunc
 
 function! s:AutoSetupFinder()
     if g:vpm#enable_project_manager
-        map <silent> <C-p> :VpmSearchFilepathDialog<cr>
-        map <silent> <C-o> :echo "AHAHAH"<cr>:VpmOpenFilepathDialog<cr>
-        autocmd BufReadPost quickfix map <silent> <Enter> :call SelectSearchFilepathDialogItem()<cr>
-        autocmd BufReadPost quickfix map <silent> t :call SelectSearchFilepathDialogItem()<cr>
-        autocmd BufReadPost quickfix map <silent> q :call CloseSearchFilepathDialog()<cr>
+        map <silent> <C-p> :call g:SearchFilepathDialog()<cr>
+        map <silent> <C-o> :call g:OpenFilepathDialog()<cr>
     endif
 endfunc
 
 
-command! -nargs=? VpmLoadProjectFilepathsData :call s:LoadProjectFilepathsData()
-command! -nargs=? VpmSearchFilepathDialog :call s:SearchFilepathDialog()
-command! -nargs=? VpmOpenFilepathDialog :call s:OpenFilepathDialog()
+command! -nargs=? VpmLoadProjectData :call s:LoadProjectFilepathsData(1)
+command! -nargs=? VpmReloadProjectData :call s:LoadProjectFilepathsData(0)
 command! -nargs=? VpmSearchFilepath :call s:SearchFilepath('<args>')
 command! -nargs=? VpmOpenFilepath :call s:OpenFilepath('<args>')
 

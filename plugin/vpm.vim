@@ -41,3 +41,7 @@ endif
 if !exists('g:vpm#upload_on_save')
     let g:vpm#upload_on_save = 0
 endif
+
+
+autocmd BufReadPost quickfix map <silent> <Enter> :call vpm#SelectQuickfixItem()<cr>
+autocmd BufReadPost quickfix map <silent> q :call vpm#CloseQuickfixItem()<cr>

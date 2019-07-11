@@ -1,5 +1,5 @@
 function! vpm#Echo(text)
-    execute "normal \<C-l>:\<C-u>"                                                                                  
+    " execute 'normal \<C-l>:\<C-u>'
     echon a:text
 endfunc
 
@@ -10,7 +10,7 @@ endfunc
 
 
 function! vpm#IsProjectLoaded()
-    if !exists('g:vpm#project_name') || !g:vpm#project_name
+    if !exists('g:vpm#project_name') || g:vpm#project_name == ''
         call vpm#Echo('Run VmpLoadProject <project_name> befor!!!')
         return 0
     endif
@@ -58,45 +58,20 @@ function! vpm#ProjectNamesCompleter(A, L, P)
 endfunc
 
 
-function! vpm#RemoteFilepathCompleter(A, P, L)
-    let prefix = ''
-    let root_tree = g:vpm#project_filepaths_tree
-
-    if substitute(a:A, '/', '', 'g') == a:A
-        let last_item = a:A
+function! vpm#GetFilepathCompleter()
+    if g:vpm#project_type == 'remote'
+        return 'customlist,pyvpm#RemoteFilepathCompleter'
     else
-        let splitted_items = split(a:A, '/')
-        let last_item = splitted_items[-1]
-        for item in splitted_items[:-1]
-            if has_key(root_tree, item)
-                let root_tree = root_tree[item]
-                let prefix = prefix . item . '/'
-            else
-                break
-            endif
-        endfor
+        return 'file'
     endif
-
-    let list_candidates = []
-    for item in keys(root_tree)
-        call add(list_candidates, item)
-    endfor
-    let list_candidates = filter(list_candidates, 'match(v:val, "^' . last_item . '") != -1')
-
-    let list_completions = []
-    for item in list_candidates
-        call add(list_completions, prefix . item)
-    endfor
-
-    return list_completions
 endfunc
 
 
-function! vpm#GetFilepathCompleter()
+function! vpm#GetFilepathNodeCompleter()
     if g:vpm#project_type == 'remote'
-        return 'customlist,vpm#RemoteFilepathCompleter'
+        return 'customlist,pyvpm#FilepathNodeCompleter'
     else
-        return 'file'
+        return 'customlist,pyvpm#FilepathNodeCompleter'
     endif
 endfunc
 
@@ -189,7 +164,7 @@ def popen_to_list_lines(subproc):
 
 def get_dirs(server, path, depth):
     path = strip(path)
-    args = ['find', path, '-type', 'd'] + ['-maxdepth', str(depth)] if depth else []
+    args = ['find', path, '-type', 'd', '-not', '-path', '*/\.*'] + ['-maxdepth', str(depth)] if depth else []
     nargs = args if server == 'localhost' else ['ssh', server, ' '.join(args)]
     subproc = subprocess.Popen(nargs, stdout=subprocess.PIPE)
     return subproc
@@ -197,7 +172,7 @@ def get_dirs(server, path, depth):
 
 def get_files(server, path, depth=None):
     path = strip(path)
-    args = ['find', path, '-type', 'f'] + (['-maxdepth', str(depth)] if depth else [])
+    args = ['find', path, '-type', 'f', '-not', '-path', '*/\.*'] + (['-maxdepth', str(depth)] if depth else [])
     nargs = args if server == 'localhost' else ['ssh', server, ' '.join(args)]
     subproc = subprocess.Popen(nargs, stdout=subprocess.PIPE)
     return subproc
@@ -371,4 +346,24 @@ vim.command('let search_results = {}'.format(sre))
 EOF
     echo search_results
     return search_results
+endfunc
+
+
+function! vpm#SelectQuickfixItem()
+    if w:quickfix_title == 'vpm#codesearch'
+        call g:SelectCodeSearchDialogItem()
+    elseif w:quickfix_title == 'vpm#searchfile'
+        call g:SelectSearchFilepathDialogItem()
+    endif
+endfunc
+
+
+function! vpm#CloseQuickfixItem()
+    if w:quickfix_title == 'vpm#codesearch'
+        call g:CloseCodeSearchDialog()
+    elseif w:quickfix_title == 'vpm#searchfile'
+        call g:CloseSearchFilepathDialog()
+    else
+        cclose
+    endif
 endfunc
