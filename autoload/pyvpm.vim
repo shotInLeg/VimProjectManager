@@ -28,21 +28,39 @@ class ProjectData(object):
         self.ssh_args = [self.remote_server]
 
         self.project_files = []
+        self.project_dirs = []
         self.project_nodes = set()
         self.project_hierarchy = {}
 
     def load_project_data(self):
+        load_start_time = time.time()
+        part_start_time = time.time()
+
+        self._show_progress('Loading...', 1, load_start_time, part_start_time, 'calculating find filepaths plan')
+        part_start_time = time.time()
+
         root_path = self.local_path if self.project_type == self.LOCAL else self.remote_path
         path_filters = self.local_path_filters if self.project_type == self.LOCAL else self.remote_path_filters
         
         plan = self._calc_find_plan(root_path)
-        pool = multiprocessing.Pool(ProjectData.CPU_COUNT)
+        pool = multiprocessing.Pool(self.CPU_COUNT)
+
+        self._show_progress('Loading...', 30, load_start_time, part_start_time, 'multiprocessing finding filepaths')
+        part_start_time = time.time()
 
         all_files = pool.map(self._get_files, [(root_path, path, depth, path_filters) for path, depth in plan])
         all_files = sum(all_files, [])
 
+        self._show_progress('Loading...', 60, load_start_time, part_start_time, 'calculating 2 indexes')
+        part_start_time = time.time()
+
         self.project_files = all_files
+        self.project_dirs = list({'/'.join(x.split('/')[:-1]) for x in self.project_files if len(x.split('/')) > 1})
         self.project_hierarchy, self.project_nodes = self._calc_structure(self.project_files)
+
+        self._show_progress('Loading done', 100, load_start_time, part_start_time, 'loaded {} files'.format(
+            len(self.project_files)
+        ))
 
     def search_filepath(self, query, limit=100):
         founded = []
@@ -52,6 +70,20 @@ class ProjectData(object):
             if len(founded) >= limit:
                 break
         return founded
+
+    def search_substring(self, query, relpath='', limit=100):
+        load_start_time = time.time()
+        
+        root_path = self.local_path if self.project_type == self.LOCAL else self.remote_path
+        full_path = '{}/{}'.format(root_path, relpath) if relpath else root_path
+
+        matches = self._get_matches((root_path, full_path, query))
+        matches = [x for x in matches if x]
+
+        self._show_progress('Searching done', 100, load_start_time, load_start_time, 'loaded {} matches'.format(
+            len(matches)
+        ))
+        return matches
 
     def autocomplete_filepath(self, path, limit=100):
         path_parts = path.split('/')
@@ -85,28 +117,38 @@ class ProjectData(object):
         if not os.path.exists(self._get_cachefile()):
             return False
 
+        load_start_time = time.time()
+        self._show_progress('Loading from cache...', 1, load_start_time, load_start_time, 'loading indexes from file')
+
         try:
             with open(self._get_cachefile(), 'r') as rfile:
                 data = json.load(rfile)
                 self.project_files = data.get('project_files', [])
+                self.project_dirs = data.get('project_dirs', [])
                 self.project_hierarchy = data.get('project_hierarchy', {})
                 self.project_nodes = data.get('project_nodes', set())
         except Exception:
             return False
 
+        self._show_progress('Loading from cache done', 100, load_start_time, load_start_time, 'loaded {} files'.format(
+            len(self.project_files)
+        ))
         return True
 
     def dump_project_data_to_cache(self):
+        dump_start_time = time.time()
+
         try:
             with open(self._get_cachefile(), 'w') as wfile:
                 data = {
                     'project_files': self.project_files,
+                    'project_dirs': self.project_dirs,
                     'project_hierarchy': self.project_hierarchy,
                     'project_nodes': list(self.project_nodes),
                 }
                 json.dump(data, wfile, indent=4)
         except Exception:
-            print('Dump ProjectData to cachefile failed')
+            vim.command('call vpm#Echo("Dump ProjectData to cachefile failed")')
             return False
         return True
 
@@ -151,8 +193,21 @@ class ProjectData(object):
 
         return list_files
 
+    def _get_matches(self, args):
+        root_path, path, pattern = args
+        list_matches = unix_grep(path, pattern, ssh_args=self.ssh_args, background=False)
+        list_matches = [x.replace('{}/'.format(root_path), '') for x in list_matches]
+
+        return list_matches 
+
     def _get_cachefile(self):
         return os.path.join(os.path.expanduser('~'), '.vim/.vpm.{}.cache'.format(self.project_name))
+
+    def _show_progress(self, prefix, perc, load_start_time, part_start_time, postfix):
+        end_time = time.time()
+        vim.command('call vpm#ShowProgress("{}", {}, "{:.2f}s/{:.2f}s {}")'.format(
+            prefix, perc, end_time - part_start_time, end_time - load_start_time, postfix
+        ))
 
 
 def unix_find(start_path, items_type, maxdepth=None, ssh_args=None, background=True):
@@ -162,6 +217,16 @@ def unix_find(start_path, items_type, maxdepth=None, ssh_args=None, background=T
 
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     return process if background else cast_unix_find_output(process.communicate()[0], start_path)
+
+
+def unix_grep(start_path, pattern, maxdepth=None, recursive=False, ssh_args=None, background=True):
+    cmd = "grep -n -r -s --binary-files=without-match --max-count=10 --exclude-dir '\.*' '{}' {}"
+    cmd = cmd.format(pattern, start_path)
+    cmd = 'ssh {} "{}"'.format(' '.join(ssh_args), cmd) if ssh_args is not None else cmd
+    print(cmd)
+
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+    return process if background else cast_unix_grep_output(process.communicate()[0], start_path)
 
 
 def cast_unix_find_output(stdout, start_path):
@@ -175,6 +240,11 @@ def cast_unix_find_output(stdout, start_path):
 
     lines = str(stdout, 'utf8').split('\n')
     return [x for x in map(strip_path, lines) if is_good_path(start_path, x)]
+
+
+def cast_unix_grep_output(stdout, start_path):
+    lines = str(stdout, 'utf8').split('\n')
+    return lines
 EOF
 endfunc
 
@@ -209,13 +279,12 @@ py3 << EOF
 import vim
 import time
 
-lazy = vim.eval('a:lazy')
+lazy = int(vim.eval('a:lazy'))
 
 s = time.time()
 if not lazy or not PROJECT_DATA.load_project_data_from_cache():
     PROJECT_DATA.load_project_data()
     PROJECT_DATA.dump_project_data_to_cache() 
-print(' Loading project files done {}s'.format(time.time() - s))
 EOF
 endfunc
 
@@ -230,6 +299,20 @@ founded = PROJECT_DATA.search_filepath(query)
 vim.command('let founded_filepaths = {}'.format(founded))
 EOF
     return founded_filepaths
+endfunc
+
+
+function! pyvpm#SearchSubstring(query, relpath)
+    let founded_substrings = []
+py3 << EOF
+import vim
+
+query = vim.eval('a:query')
+relpath = vim.eval('a:relpath')
+founded = PROJECT_DATA.search_substring(query, relpath)
+vim.command('let founded_substrings = {}'.format(founded))
+EOF
+    return founded_substrings
 endfunc
 
 

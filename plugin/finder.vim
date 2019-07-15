@@ -29,8 +29,14 @@ function! s:OpenFilepath(filepath, buffer_busy)
         let buffer_busy = vpm#IsCurrentBufferBusy()
     endif
 
+    if a:filepath == ""
+        return 0
+    endif
+
     let cmd = vpm#GetOpenFilepathCommand(a:filepath, a:buffer_busy)
     silent! exec cmd
+
+    return 1
 endfunc
 
 
