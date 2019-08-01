@@ -72,4 +72,4 @@ function! g:GrepRelPath(query, relpath)
 endfunc
 
 
-command! -nargs=* VpmGrep :call s:GrepInProject(<f-args>)
+command! -complete=customlist,pyvpm#RemoteFilepathCompleter -nargs=* VpmGrep :call s:GrepInProject(<f-args>)

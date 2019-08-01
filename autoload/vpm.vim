@@ -93,6 +93,31 @@ function! vpm#GetOpenFilepathCommand(filepath, buffer_busy)
 endfunc
 
 
+function! vpm#OpenFilepath(filepath, buffer_busy)
+    if a:buffer_busy == 'NONE'
+        let buffer_busy = vpm#IsCurrentBufferBusy()
+    endif
+
+    if a:filepath == ""
+        return 0
+    endif
+
+    let filepath_parts = split(a:filepath, ':')
+    let [filepath, row_number, col_number] = [filepath_parts[0], 0, 0]
+    if len(filepath_parts) > 1
+        let row_number = filepath_parts[1]
+    endif
+    if len(filepath_parts) > 2
+        let col_number = filepath_parts[2] 
+    endif
+ 
+    silent! exec vpm#GetOpenFilepathCommand(filepath, a:buffer_busy)
+    silent! call cursor(row_number, col_number)
+
+    return 1
+endfunc
+
+
 function! vpm#SelectQuickfixItem()
     if exists('w:quickfix_title') && w:quickfix_title == 'vpm#codesearch'
         call g:SelectCodeSearchDialogItem()

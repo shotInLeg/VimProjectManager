@@ -25,7 +25,7 @@ class ProjectData(object):
         self.remote_path_filters = remote_path_filters
         self.ram_storage = ram_storage
 
-        self.ssh_args = [self.remote_server]
+        self.ssh_args = [self.remote_server] if self.project_type == self.REMOTE else None
 
         self.project_files = []
         self.project_dirs = []
@@ -160,8 +160,10 @@ class ProjectData(object):
                 continue
  
             root = hierarchy
-            for item in path.split('/'):
-                nodes.add(item)
+            splitted_path = path.split('/')
+            for idx, item in enumerate(splitted_path):
+                indexed_item = item.split('.')[0] if idx >= (len(splitted_path) - 1) else item
+                nodes.add(indexed_item)
                 if item not in root:
                     root[item] = {}
                 root = root[item]
@@ -173,13 +175,13 @@ class ProjectData(object):
         while (len(subdirs) + len(last_dirs_level)) < ProjectData.CPU_COUNT * 3:
             subdirs += last_dirs_level
 
-            dirs = []
+            sub_dirs = []
             for subpath in last_dirs_level: 
-                dirs += unix_find(subpath, 'd', 1, self.ssh_args, background=False)
+                 sub_dirs += unix_find(subpath, 'd', 1, self.ssh_args, background=False)
+            last_dirs_level = sub_dirs
 
-            if not dirs:
+            if not last_dirs_level:
                 break
-            last_dirs_level = dirs
 
         plan = [(p, 1) for p in subdirs]
         plan += [(p, None) for p in last_dirs_level]

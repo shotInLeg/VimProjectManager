@@ -24,22 +24,6 @@ function! s:LoadProjectFilepathsDataIfNeeded()
 endfunc
 
 
-function! s:OpenFilepath(filepath, buffer_busy)
-    if a:buffer_busy == 'NONE'
-        let buffer_busy = vpm#IsCurrentBufferBusy()
-    endif
-
-    if a:filepath == ""
-        return 0
-    endif
-
-    let cmd = vpm#GetOpenFilepathCommand(a:filepath, a:buffer_busy)
-    silent! exec cmd
-
-    return 1
-endfunc
-
-
 function! s:SearchFilepath(search_query)
     if !vpm#IsProjectLoaded()
         call vpm#Echo('Project not loaded')
@@ -50,18 +34,21 @@ function! s:SearchFilepath(search_query)
 
     call vpm#Echo('Searching filepaths: ' . a:search_query)
 
-    let matched_filepargs = pyvpm#SearchFilepath(a:search_query)
-    cgetexpr matched_filepargs
+    let matched_filepaths = pyvpm#SearchFilepath(a:search_query)
+    
+    if len(matched_filepargs) < 1
+        call vpm#Echo('Couldnt not find filepaths matching ' . a:search_query)
+        return 0
+    endif
+
+    cgetexpr matched_filepaths
     exe 'copen 10'
     let w:quickfix_title = 'vpm#searchfile'
 
     let b:statusline = 'Search file: ' . a:search_query
     setlocal statusline=%{b:statusline}
 
-    if len(getqflist()) < 1
-        cclose
-        call vpm#Echo('Couldnt not find filepaths matching ' . a:search_query)
-    endif
+    return 1
 endfunc
 
 
@@ -73,12 +60,12 @@ function! g:SearchFilepathDialog()
 
     call s:LoadProjectFilepathsDataIfNeeded()
 
-    let s:buffer_busy = vpm#IsCurrentBufferBusy()
     let completer = vpm#GetFilepathNodeCompleter()
-
     let search_query = input('Search file: ', '', completer)
 
     silent! call s:SearchFilepath(search_query)
+
+    return 1
 endfunc
 
 
@@ -92,7 +79,9 @@ function! g:SelectSearchFilepathDialogItem()
     let filepath = substitute(selected_line, '|| ', '', 'g')
 
     call g:CloseSearchFilepathDialog()
-    call s:OpenFilepath(filepath, s:buffer_busy)
+
+    let buffer_busy = vpm#IsCurrentBufferBusy()
+    call vpm#OpenFilepath(filepath, 'NONE')
 
     return 1
 endfunc
@@ -110,15 +99,15 @@ function! g:OpenFilepathDialog()
         return 0
     endif
 
+    let buffer_busy = vpm#IsCurrentBufferBusy()
     let completer = vpm#GetFilepathCompleter()
-
     let filepath = input('Open file: ', '', completer)
 
     call s:OpenFilepath(filepath, 'NONE')
 endfunc
 
 
-function! s:AutoSetupFinder()
+function! s:AutoSetupFinderMapping()
     if g:vpm#enable_project_manager
         map <silent> <C-p> :call g:SearchFilepathDialog()<cr>
         map <silent> <C-o> :call g:OpenFilepathDialog()<cr>
@@ -129,7 +118,7 @@ endfunc
 command! -nargs=? VpmLoadProjectData :call s:LoadProjectFilepathsData(1)
 command! -nargs=? VpmReloadProjectData :call s:LoadProjectFilepathsData(0)
 command! -nargs=? VpmSearchFilepath :call s:SearchFilepath('<args>')
-command! -nargs=? VpmOpenFilepath :call s:OpenFilepath('<args>')
+command! -nargs=? VpmOpenFilepath :call vpm#OpenFilepath('<args>', 'NONE')
 
 
-autocmd VimEnter * :call s:AutoSetupFinder()
+autocmd VimEnter * :call s:AutoSetupFinderMapping()

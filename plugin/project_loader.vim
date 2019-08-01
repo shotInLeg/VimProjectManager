@@ -2,28 +2,37 @@ call pyvpm#Init()
 
 
 function! s:LoadProjectByCwd()
-    if !exists('g:vpm#projects')
-        return 0
-    endif
-
     let cwd = getcwd(0)
     let cwd_s = cwd . '/'
 
-    for project_name in keys(g:vpm#projects)
-        let config = g:vpm#projects[project_name]
+    if exists('g:vpm#projects')
+        for project_name in keys(g:vpm#projects)
+            let config = g:vpm#projects[project_name]
 
-        if !has_key(config, 'local_path')
-            continue
-        endif
+            if !has_key(config, 'local_path')
+                continue
+            endif
 
-        if (config['local_path'] == cwd || config['local_path'] == cwd_s) && s:LoadProject(project_name) != 0
-            echo 'Project ' . project_name . ' loaded'
-            return 1
-        endif
-    endfor
+            if (config['local_path'] == cwd || config['local_path'] == cwd_s) && s:LoadProject(project_name) != 0
+                call vpm#Echo('Project ' . project_name . ' loaded')
+                return 1
+            endif
+        endfor
+    endif
 
-    echo 'Not found config for ' . cwd
-    return 0
+    let g:vpm#project_name = 'autoload-' . split(cwd, '/')[-1] 
+    let g:vpm#project_type = 'local'
+    let g:vpm#remote_server = ''
+    let g:vpm#remote_path = ''
+    let g:vpm#local_path = cwd
+    let g:vpm#remote_path_filters = []
+    let g:vpm#local_path_filters = []
+    let g:vpm#upload_on_save = 0
+
+    call pyvpm#MakeProjectData()
+
+    call vpm#Echo('Loaded project ' . g:vpm#project_name . ' (' . g:vpm#project_type . ')')
+    return 1
 endfunc
 
 
